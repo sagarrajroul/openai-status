@@ -26,6 +26,9 @@ storage = InMemoryStorage()
 processor = IncidentProcessor(storage)
 background_tasks = []
 
+@app.get("/logs")
+async def get_logs():
+    return storage.get_all()
 
 @app.get("/")
 async def health():
