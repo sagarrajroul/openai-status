@@ -1,8 +1,14 @@
 import asyncio
+import os
+from fastapi import FastAPI
+import uvicorn
+
 from event_bus import EventBus
 from storage import InMemoryStorage
 from processor import IncidentProcessor
 from scheduler import ProviderScheduler
+
+
 
 PROVIDERS = [
     {
@@ -12,11 +18,21 @@ PROVIDERS = [
     }
 ]
 
-async def main():
-    event_bus = EventBus()
-    storage = InMemoryStorage()
-    processor = IncidentProcessor(storage)
+app = FastAPI()
 
+# Global references
+event_bus = EventBus()
+storage = InMemoryStorage()
+processor = IncidentProcessor(storage)
+background_tasks = []
+
+
+@app.get("/")
+async def health():
+    return {"status": "monitor running"}
+
+
+async def start_monitoring():
     schedulers = [
         ProviderScheduler(provider, event_bus)
         for provider in PROVIDERS
@@ -27,5 +43,16 @@ async def main():
         event_bus.consume(processor.handle)
     )
 
+
+@app.on_event("startup")
+async def startup_event():
+    # Run monitor as background task
+    task = asyncio.create_task(start_monitoring())
+    background_tasks.append(task)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+
